@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Conway's Game of Life</title>
+  <link rel="stylesheet" href="style.css">
+
+</head>
+<body>
+
+  <h1>Game of Life</h1>
+  <p class="subtitle">Conway's cellular automaton — 1970</p>
+
+  <canvas id="canvas"></canvas>
+
+  <div id="controls">
+    <button id="btn-play">▶ Play</button>
+    <button id="btn-step">Step</button>
+    <button id="btn-clear">Clear</button>
+    <button id="btn-random">Random</button>
+  </div>
+
+  <div id="speed-row">
+    <span>Slow</span>
+    <input type="range" id="speed-slider" min="1" max="30" value="10" />
+    <span>Fast</span>
+  </div>
+
+  <div id="stats">
+    <div class="stat-item">
+      <div class="stat-label">Generation</div>
+      <div class="stat-num" id="gen-count">0</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">Alive cells</div>
+      <div class="stat-num" id="alive-count">0</div>
+    </div>
+  </div>
+
+  <div id="presets">
+    <button onclick="placePreset('glider')">Glider</button>
+    <button onclick="placePreset('blinker')">Blinker</button>
+    <button onclick="placePreset('pulsar')">Pulsar</button>
+    <button onclick="placePreset('glidergun')">Glider Gun</button>
+  </div>
+
+  <div id="tip">click or drag on the grid to draw cells</div>
+  <script src="script.js"></script>
+
+
+</body>
+</html>
