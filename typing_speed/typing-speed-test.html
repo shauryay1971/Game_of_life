@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Typing Speed Test</title>
+
+  <style>
+    body {
+      font-family: monospace;
+      text-align: center;
+      padding: 30px;
+      background: #f9f9f9;
+    }
+
+    h1 {
+      margin-bottom: 6px;
+    }
+
+    p.subtitle {
+      color: #888;
+      margin-bottom: 24px;
+    }
+
+    /* The passage box — words are coloured here */
+    #passage {
+      font-size: 18px;
+      line-height: 1.8;
+      max-width: 680px;
+      margin: 0 auto 16px;
+      background: #fff;
+      border: 1px solid #ccc;
+      padding: 16px;
+      text-align: left;
+    }
+
+    /* Colour classes applied to each word span */
+    .word-current  { background: #ddeeff; border-radius: 3px; }
+    .word-correct  { color: #2a9d2a; }
+    .word-wrong    { color: #cc0000; text-decoration: underline; }
+
+    /* The input where the user types */
+    #typing-input {
+      font-family: monospace;
+      font-size: 16px;
+      width: 680px;
+      max-width: 100%;
+      padding: 8px;
+      border: 1px solid #aaa;
+    }
+
+    /* Stats row */
+    #stats {
+      margin: 16px auto;
+      font-size: 15px;
+    }
+
+    #stats span {
+      margin: 0 16px;
+    }
+
+    /* Result box shown at the end */
+    #result {
+      font-size: 20px;
+      margin: 20px auto;
+      padding: 16px;
+      max-width: 400px;
+      background: #fff;
+      border: 1px solid #ccc;
+    }
+
+    button {
+      margin-top: 12px;
+      padding: 8px 20px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Typing Speed Test</h1>
+  <p class="subtitle">Type the passage below as fast and accurately as you can.</p>
+
+  <!-- The passage is split into word spans by JS -->
+  <div id="passage"></div>
+
+  <!-- User types here -->
+  <input id="typing-input" type="text" placeholder="Start typing to begin…" autocomplete="off" />
+
+  <!-- Live stats during the test -->
+  <div id="stats">
+    <span>Time: <strong id="time-display">60</strong>s</span>
+    <span>WPM: <strong id="wpm-display">0</strong></span>
+    <span>Accuracy: <strong id="acc-display">100</strong>%</span>
+  </div>
+
+  <!-- Shown only when the test ends -->
+  <div id="result" style="display:none"></div>
+
+  <button id="restart-btn">Restart</button>
+
+  <script>
+
+    // ── Passages to choose from ──────────────────────────────────
+    var PASSAGES = [
+      "The quick brown fox jumps over the lazy dog near the river bank on a sunny afternoon in the middle of summer.",
+      "Programming is the art of telling another human being what one wants the computer to do in a clear and simple way.",
+      "A journey of a thousand miles begins with a single step and the courage to keep moving forward no matter what.",
+      "The best way to predict the future is to create it yourself through hard work patience and a willingness to learn.",
+      "Simple code is better than clever code because other people need to read it understand it and maintain it over time."
+    ];
+
+    // ── Test settings ────────────────────────────────────────────
+    var TIME_LIMIT = 60;  // seconds for each round
+
+    // ── State variables ──────────────────────────────────────────
+    var words        = [];   // array of words in the current passage
+    var currentIndex = 0;    // which word the user is on right now
+    var correctCount = 0;    // how many words typed correctly so far
+    var wrongCount   = 0;    // how many words typed wrongly so far
+    var timeLeft     = TIME_LIMIT;
+    var timer        = null;
+    var testStarted  = false;
+
+    // ── DOM references ───────────────────────────────────────────
+    var passageDiv   = document.getElementById('passage');
+    var typingInput  = document.getElementById('typing-input');
+    var timeDisplay  = document.getElementById('time-display');
+    var wpmDisplay   = document.getElementById('wpm-display');
+    var accDisplay   = document.getElementById('acc-display');
+    var resultDiv    = document.getElementById('result');
+    var restartBtn   = document.getElementById('restart-btn');
+
+    // ════════════════════════════════════════════════════════════
+    //  SETUP
+    // ════════════════════════════════════════════════════════════
+
+    // Pick a random passage and build the word spans
+    function loadPassage() {
+      var randomIndex = Math.floor(Math.random() * PASSAGES.length);
+      var passage     = PASSAGES[randomIndex];
+      words           = passage.split(' ');
+
+      // Build one <span> per word inside the passage div
+      passageDiv.innerHTML = '';
+      for (var i = 0; i < words.length; i++) {
+        var span = document.createElement('span');
+        span.textContent = words[i] + ' ';
+        span.id = 'word-' + i;
+        passageDiv.appendChild(span);
+      }
+
+      // Highlight the first word
+      highlightWord(0);
+    }
+
+    // Reset everything back to the starting state
+    function resetTest() {
+      clearInterval(timer);
+      testStarted  = false;
+      currentIndex = 0;
+      correctCount = 0;
+      wrongCount   = 0;
+      timeLeft     = TIME_LIMIT;
+
+      typingInput.value   = '';
+      typingInput.disabled = false;
+      typingInput.focus();
+
+      timeDisplay.textContent = TIME_LIMIT;
+      wpmDisplay.textContent  = 0;
+      accDisplay.textContent  = 100;
+
+      resultDiv.style.display = 'none';
+
+      loadPassage();
+    }
+
+    // ════════════════════════════════════════════════════════════
+    //  TIMER
+    // ════════════════════════════════════════════════════════════
+
+    function startTimer() {
+      timer = setInterval(function () {
+        timeLeft--;
+        timeDisplay.textContent = timeLeft;
+
+        if (timeLeft <= 0) {
+          endTest();
+        }
+      }, 1000);
+    }
+
+    // ════════════════════════════════════════════════════════════
+    //  WORD HIGHLIGHTING
+    // ════════════════════════════════════════════════════════════
+
+    // Remove highlight from a word span
+    function clearHighlight(index) {
+      var span = document.getElementById('word-' + index);
+      if (span) span.classList.remove('word-current');
+    }
+
+    // Add the blue highlight to show which word is active
+    function highlightWord(index) {
+      var span = document.getElementById('word-' + index);
+      if (span) span.classList.add('word-current');
+    }
+
+    // Mark a word green (correct) or red (wrong)
+    function markWord(index, isCorrect) {
+      var span = document.getElementById('word-' + index);
+      if (!span) return;
+      span.classList.remove('word-current');
+      if (isCorrect) {
+        span.classList.add('word-correct');
+      } else {
+        span.classList.add('word-wrong');
+      }
+    }
+
+    // ════════════════════════════════════════════════════════════
+    //  STATS CALCULATION
+    // ════════════════════════════════════════════════════════════
+
+    // WPM = correct words typed ÷ minutes elapsed
+    function calculateWPM() {
+      var minutesElapsed = (TIME_LIMIT - timeLeft) / 60;
+      if (minutesElapsed === 0) return 0;
+      return Math.round(correctCount / minutesElapsed);
+    }
+
+    // Accuracy = correct words ÷ total words attempted × 100
+    function calculateAccuracy() {
+      var totalAttempted = correctCount + wrongCount;
+      if (totalAttempted === 0) return 100;
+      return Math.round((correctCount / totalAttempted) * 100);
+    }
+
+    function updateStats() {
+      wpmDisplay.textContent = calculateWPM();
+      accDisplay.textContent = calculateAccuracy();
+    }
+
+    // ════════════════════════════════════════════════════════════
+    //  END TEST
+    // ════════════════════════════════════════════════════════════
+
+    function endTest() {
+      clearInterval(timer);
+      typingInput.disabled = true;
+
+      var finalWPM = calculateWPM();
+      var finalAcc = calculateAccuracy();
+
+      resultDiv.innerHTML =
+        '<strong>Test Complete!</strong><br><br>' +
+        'WPM: <strong>' + finalWPM + '</strong><br>' +
+        'Accuracy: <strong>' + finalAcc + '%</strong><br>' +
+        'Correct words: <strong>' + correctCount + '</strong><br>' +
+        'Wrong words: <strong>' + wrongCount + '</strong>';
+
+      resultDiv.style.display = 'block';
+    }
+
+    // ════════════════════════════════════════════════════════════
+    //  TYPING INPUT HANDLER
+    // ════════════════════════════════════════════════════════════
+
+    typingInput.addEventListener('keyup', function (event) {
+
+      // Start the timer on the very first keypress
+      if (!testStarted) {
+        testStarted = true;
+        startTimer();
+      }
+
+      // We only act when the user presses Space (to submit a word)
+      if (event.key !== ' ') return;
+
+      // Get whatever the user typed, trimming the trailing space
+      var typedWord = typingInput.value.trim();
+
+      // Ignore empty presses (double-space)
+      if (typedWord === '') {
+        typingInput.value = '';
+        return;
+      }
+
+      // Check if the typed word matches the expected word
+      var expectedWord = words[currentIndex];
+      var isCorrect    = (typedWord === expectedWord);
+
+      // Update counters
+      if (isCorrect) {
+        correctCount++;
+      } else {
+        wrongCount++;
+      }
+
+      // Colour the word in the passage
+      markWord(currentIndex, isCorrect);
+
+      // Move to the next word
+      currentIndex++;
+
+      // Clear the input box
+      typingInput.value = '';
+
+      // Update the live stats
+      updateStats();
+
+      // If all words are done, end the test early
+      if (currentIndex >= words.length) {
+        endTest();
+        return;
+      }
+
+      // Highlight the next word
+      highlightWord(currentIndex);
+    });
+
+    // ════════════════════════════════════════════════════════════
+    //  RESTART BUTTON
+    // ════════════════════════════════════════════════════════════
+
+    restartBtn.addEventListener('click', function () {
+      resetTest();
+    });
+
+    // ── Start the first test on page load ────────────────────────
+    resetTest();
+
+  </script>
+</body>
+</html>
