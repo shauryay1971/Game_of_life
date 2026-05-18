@@ -1,0 +1,283 @@
+
+
+    // Canvas setup 
+    var canvas = document.getElementById('canvas');
+    var ctx    = canvas.getContext('2d');
+
+    var CELL_SIZE = 12;
+    var COLS = 60;
+    var ROWS = 45;
+
+    canvas.width  = COLS * CELL_SIZE;
+    canvas.height = ROWS * CELL_SIZE;
+
+    // Grid: 0 = dead, 1 = alive
+    var grid = createEmptyGrid();
+
+    //  State variables 
+    var isRunning   = false;
+    var generation  = 0;
+    var simInterval = null;
+    var isDrawing   = false;
+    var drawValue   = 1;
+
+    //  Button events
+    var btnPlay = document.getElementById('btn-play');
+
+    btnPlay.addEventListener('click', function() {
+      if (isRunning) {
+        stopSim();
+      } else {
+        startSim();
+      }
+    });
+
+    document.getElementById('btn-step').addEventListener('click', function() {
+      stopSim();
+      nextGeneration();
+      drawGrid();
+    });
+
+    document.getElementById('btn-clear').addEventListener('click', function() {
+      stopSim();
+      grid = createEmptyGrid();
+      generation = 0;
+      updateStats();
+      drawGrid();
+    });
+
+    document.getElementById('btn-random').addEventListener('click', function() {
+      stopSim();
+      grid = createRandomGrid();
+      generation = 0;
+      updateStats();
+      drawGrid();
+    });
+
+    document.getElementById('speed-slider').addEventListener('input', function() {
+      if (isRunning) {
+        stopSim();
+        startSim();
+      }
+    });
+
+    // Mouse drawing 
+    canvas.addEventListener('mousedown', function(e) {
+      isDrawing = true;
+      var pos = getCellFromMouse(e);
+      drawValue = grid[pos.row][pos.col] === 1 ? 0 : 1;
+      grid[pos.row][pos.col] = drawValue;
+      updateStats();
+      drawGrid();
+    });
+
+    canvas.addEventListener('mousemove', function(e) {
+      if (!isDrawing) return;
+      var pos = getCellFromMouse(e);
+      grid[pos.row][pos.col] = drawValue;
+      updateStats();
+      drawGrid();
+    });
+
+    canvas.addEventListener('mouseup',    function() { isDrawing = false; });
+    canvas.addEventListener('mouseleave', function() { isDrawing = false; });
+
+    //  Get row/col from mouse position 
+    function getCellFromMouse(e) {
+      var rect = canvas.getBoundingClientRect();
+      var col = Math.floor((e.clientX - rect.left)  / CELL_SIZE);
+      var row = Math.floor((e.clientY - rect.top)   / CELL_SIZE);
+      col = Math.max(0, Math.min(COLS - 1, col));
+      row = Math.max(0, Math.min(ROWS - 1, row));
+      return { row: row, col: col };
+    }
+
+    // Create a blank grid
+    function createEmptyGrid() {
+      var g = [];
+      for (var r = 0; r < ROWS; r++) {
+        g[r] = [];
+        for (var c = 0; c < COLS; c++) {
+          g[r][c] = 0;
+        }
+      }
+      return g;
+    }
+
+    // Create a random grid
+    function createRandomGrid() {
+      var g = [];
+      for (var r = 0; r < ROWS; r++) {
+        g[r] = [];
+        for (var c = 0; c < COLS; c++) {
+          g[r][c] = Math.random() < 0.25 ? 1 : 0;
+        }
+      }
+      return g;
+    }
+
+    // Compute next generation
+    function nextGeneration() {
+      var next = createEmptyGrid();
+
+      for (var r = 0; r < ROWS; r++) {
+        for (var c = 0; c < COLS; c++) {
+          var neighbors = countNeighbors(r, c);
+          var alive = grid[r][c] === 1;
+
+          if (alive && (neighbors === 2 || neighbors === 3)) {
+            next[r][c] = 1;   // survives
+          } else if (!alive && neighbors === 3) {
+            next[r][c] = 1;   // born
+          } else {
+            next[r][c] = 0;   // dies
+          }
+        }
+      }
+
+      grid = next;
+      generation++;
+    }
+
+    //  Count live neighbors (wraps around edges) 
+    function countNeighbors(row, col) {
+      var count = 0;
+      for (var dr = -1; dr <= 1; dr++) {
+        for (var dc = -1; dc <= 1; dc++) {
+          if (dr === 0 && dc === 0) continue;
+          var r = (row + dr + ROWS) % ROWS;
+          var c = (col + dc + COLS) % COLS;
+          count += grid[r][c];
+        }
+      }
+      return count;
+    }
+
+    // ── Draw the grid ──
+    function drawGrid() {
+      // Background
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Grid lines
+      ctx.strokeStyle = '#e8e8e8';
+      ctx.lineWidth = 0.5;
+      for (var r = 0; r <= ROWS; r++) {
+        ctx.beginPath();
+        ctx.moveTo(0, r * CELL_SIZE);
+        ctx.lineTo(canvas.width, r * CELL_SIZE);
+        ctx.stroke();
+      }
+      for (var c = 0; c <= COLS; c++) {
+        ctx.beginPath();
+        ctx.moveTo(c * CELL_SIZE, 0);
+        ctx.lineTo(c * CELL_SIZE, canvas.height);
+        ctx.stroke();
+      }
+
+      // Alive cells
+      ctx.fillStyle = '#444';
+      for (var row = 0; row < ROWS; row++) {
+        for (var col = 0; col < COLS; col++) {
+          if (grid[row][col] === 1) {
+            ctx.fillRect(
+              col * CELL_SIZE + 1,
+              row * CELL_SIZE + 1,
+              CELL_SIZE - 2,
+              CELL_SIZE - 2
+            );
+          }
+        }
+      }
+    }
+
+    //  Update stat numbers 
+    function updateStats() {
+      var alive = 0;
+      for (var r = 0; r < ROWS; r++) {
+        for (var c = 0; c < COLS; c++) {
+          alive += grid[r][c];
+        }
+      }
+      document.getElementById('gen-count').textContent   = generation;
+      document.getElementById('alive-count').textContent = alive;
+    }
+
+    // Start simulation 
+    function startSim() {
+      isRunning = true;
+      btnPlay.textContent = '⏸ Pause';
+      btnPlay.classList.add('active');
+      var fps = parseInt(document.getElementById('speed-slider').value);
+      simInterval = setInterval(function() {
+        nextGeneration();
+        drawGrid();
+        updateStats();
+      }, 1000 / fps);
+    }
+
+    //  Stop simulation 
+    function stopSim() {
+      isRunning = false;
+      btnPlay.textContent = '▶ Play';
+      btnPlay.classList.remove('active');
+      clearInterval(simInterval);
+    }
+
+    // Preset patterns 
+    var PRESETS = {
+      glider: [
+        [0,1],[1,2],[2,0],[2,1],[2,2]
+      ],
+      blinker: [
+        [0,0],[0,1],[0,2]
+      ],
+      pulsar: [
+        [-6,-4],[-6,-3],[-6,-2],[-6,2],[-6,3],[-6,4],
+        [-4,-6],[-4,-1],[-4,1],[-4,6],
+        [-3,-6],[-3,-1],[-3,1],[-3,6],
+        [-2,-6],[-2,-1],[-2,1],[-2,6],
+        [-1,-4],[-1,-3],[-1,-2],[-1,2],[-1,3],[-1,4],
+        [1,-4],[1,-3],[1,-2],[1,2],[1,3],[1,4],
+        [2,-6],[2,-1],[2,1],[2,6],
+        [3,-6],[3,-1],[3,1],[3,6],
+        [4,-6],[4,-1],[4,1],[4,6],
+        [6,-4],[6,-3],[6,-2],[6,2],[6,3],[6,4]
+      ],
+      glidergun: [
+        [5,1],[5,2],[6,1],[6,2],
+        [5,11],[6,11],[7,11],[4,12],[8,12],[3,13],[9,13],[3,14],[9,14],
+        [6,15],[4,16],[8,16],[5,17],[6,17],[7,17],[6,18],
+        [3,21],[4,21],[5,21],[3,22],[4,22],[5,22],[2,23],[6,23],
+        [1,25],[2,25],[6,25],[7,25],
+        [3,35],[4,35],[3,36],[4,36]
+      ]
+    };
+
+    function placePreset(name) {
+      stopSim();
+      var pattern   = PRESETS[name];
+      var centerRow = Math.floor(ROWS / 2);
+      var centerCol = Math.floor(COLS / 2);
+
+      if (name === 'glidergun') {
+        centerRow = 5;
+        centerCol = 2;
+      }
+
+      for (var i = 0; i < pattern.length; i++) {
+        var r = centerRow + pattern[i][0];
+        var c = centerCol + pattern[i][1];
+        if (r >= 0 && r < ROWS && c >= 0 && c < COLS) {
+          grid[r][c] = 1;
+        }
+      }
+
+      generation = 0;
+      updateStats();
+      drawGrid();
+    }
+
+    // Start
+    drawGrid();
+    updateStats();
