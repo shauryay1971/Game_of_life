@@ -1,7 +1,7 @@
 # Conway's Game of Life Implementation Analysis
 
 ## Overview
-This file (`game_of_life.html`) is a standalone HTML file that implements Conway's Game of Life, a famous cellular automaton devised by mathematician John Horton Conway in 1970. It uses vanilla HTML, CSS, and JavaScript, rendering the grid on an HTML5 `<canvas>` element.
+This file (`index.html`) is a standalone HTML file that implements Conway's Game of Life, a famous cellular automaton devised by mathematician John Horton Conway in 1970. It uses vanilla HTML, CSS, and JavaScript, rendering the grid on an HTML5 `<canvas>` element.
 
 The Game of Life is a "zero-player game," meaning its evolution is determined entirely by its initial state. The simulation happens on a 2D grid of "cells," each of which is in one of two possible states: alive (1) or dead (0).
 
